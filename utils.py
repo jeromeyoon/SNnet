@@ -19,17 +19,10 @@ def create_mask(images):
 
 def get_image(image_path,light_path,gt_path,image_size,randx,randy,is_crop=True):
     input_ = transform(imread(image_path),image_size,randx,randy,is_crop)
-    light = light_normal(transform(imread(light_path),image_size,randx,randy,is_crop))
-    #light = light_normal(transform(imread(light_path),image_size,randx,randy,is_crop))
+    light = transform(imread(light_path),image_size,randx,randy,is_crop)
     gt = surface_normal(transform(imread(gt_path),image_size,randx,randy,is_crop))
     mask = create_mask(input_)
     return np.concatenate((input_,light,mask,gt),axis=2)
-
-
-def light_normal(light):
-    light = (light+1.0)/2.0
-    light=light/np.expand_dims(np.sqrt(np.sum(np.power(light,2),axis=2)),-1)
-    return light
 
 def surface_normal(surface):
     surface = surface/np.expand_dims(np.sqrt(np.sum(np.power(surface,2),axis=2)),-1)
@@ -74,7 +67,7 @@ def imread(path):
        tmp = tmp * np.random.normal(mean,std)
        np.clip(tmp,0.0,255.0,out=tmp)
        """
-       return np.reshape(tmp, (224,224,1))
+       return np.reshape(tmp, (tmp.shape[0],tmp.shape[1],1))
     return tmp
        
 """

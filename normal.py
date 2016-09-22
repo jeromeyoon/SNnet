@@ -2,8 +2,13 @@ import numpy as np
 from numpy import inf
 import tensorflow as tf
 
-def norm_(samples,gt_sample):
+def norm_(samples,gt_sample,mask):
 
+    samples = tf.div(tf.add(samples,1.0),2)
+    samples = tf.mul(samples,mask)
+    samples = tf.clip_by_value(samples,1e-10,1.0)
+    gt_sample = tf.div(tf.add(gt_sample,1.0),2)
+    gt_sample = tf.clip_by_value(gt_sample,1e-10,1.0)
     output = tf.sqrt(tf.reduce_sum(tf.pow(samples,2.),3))
     output = tf.expand_dims(output,-1)
     output = tf.div(samples,output)

@@ -1,7 +1,7 @@
-import os
-import random
 import numpy as np
+import os
 import tensorflow as tf
+import random
 import time 
 import json
 from model import DCGAN
@@ -13,7 +13,7 @@ import glob
 from sorting import natsorted
 import pdb
 import matplotlib.image as mpimg
-import cv2
+#import cv2
 import time
 flags = tf.app.flags
 flags.DEFINE_integer("epoch", 1000, "Epoch to train [25]")
@@ -22,13 +22,13 @@ flags.DEFINE_float("beta1", 0.5, "Momentum term of adam [0.5]")
 flags.DEFINE_integer("train_size", np.inf, "The size of train images [np.inf]")
 flags.DEFINE_integer("batch_size", 20, "The size of batch images [64]")
 flags.DEFINE_integer("image_size", 108, "The size of image to use (will be center cropped) [108]")
-flags.DEFINE_string("dataset", "L2_loss", "The name of dataset [celebA, mnist, lsun]")
+flags.DEFINE_string("dataset", "MSE_ang_hinge", "The name of dataset [celebA, mnist, lsun]")
 flags.DEFINE_string("checkpoint_dir", "checkpoint", "Directory name to save the checkpoints [checkpoint]")
 flags.DEFINE_string("sample_dir", "output", "Directory name to save the image samples [samples]")
 flags.DEFINE_boolean("is_train", False, "True for training, False for testing [False]")
 flags.DEFINE_boolean("is_crop", False, "True for training, False for testing [False]")
 flags.DEFINE_integer("input_size", 64, "The size of image input size")
-flags.DEFINE_float("gpu",0.9,"GPU fraction per process")
+flags.DEFINE_float("gpu",0.5,"GPU fraction per process")
 FLAGS = flags.FLAGS
 
 def rgb2gray(rgb):
@@ -47,8 +47,7 @@ def main(_):
     if not os.path.exists(os.path.join('./logs',time.strftime('%d%m'))):
 	os.makedirs(os.path.join('./logs',time.strftime('%d%m')))
 
-
-    gpu_config = tf.GPUOptions(per_process_gpu_memory_fraction=0.9)
+    gpu_config = tf.GPUOptions(per_process_gpu_memory_fraction=FLAGS.gpu)
     with tf.Session(config=tf.ConfigProto(gpu_options=gpu_config)) as sess:
         if FLAGS.is_train:
             dcgan = DCGAN(sess, image_size=FLAGS.image_size, batch_size=FLAGS.batch_size, input_size=FLAGS.input_size,

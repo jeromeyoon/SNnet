@@ -1,6 +1,8 @@
 import os
 import time
 from glob import glob
+import numpy as np
+from numpy import inf
 import tensorflow as tf
 import pdb
 #from tensorflow.python.ops.script_ops import *
@@ -9,8 +11,6 @@ from utils import *
 from compute_ei import *
 from normal import norm_
 import time
-import numpy as np
-from numpy import inf
 class DCGAN(object):
     def __init__(self, sess, image_size=108, is_crop=True,\
                  batch_size=32, input_size=64, sample_size=32, ir_image_shape=[64, 64,1], normal_image_shape=[64, 64, 3],\
@@ -33,9 +33,9 @@ class DCGAN(object):
 	
 	self.lambda_ang = 1.0
         self.lambda_g = 1.0
-        self.lambda_L2 = 1.0
-	self.lambda_scale = 100.0
-        self.lambda_hing = 100.0
+        self.lambda_L2 = 100.0
+	self.lambda_scale = 1.0
+        self.lambda_hing = 1.0
         
 
 	# batch normalization : deals with poor initialization helps gradient flow
@@ -51,8 +51,6 @@ class DCGAN(object):
         self.g_bn4 = batch_norm(batch_size, name='g_bn4')
         self.g_bn5 = batch_norm(batch_size, name='g_bn5')
         self.g_bn6 = batch_norm(batch_size, name='g_bn6')
-
-
         self.build_model()
 
     def build_model(self):
@@ -73,7 +71,7 @@ class DCGAN(object):
         self.light_test = tf.placeholder(tf.float32, [1,600,800,1],name='light_test')
         self.gt_test = tf.placeholder(tf.float32, [1,600,800,3],name='gt_test')
 
-        self.G,self.nonactive_G = self.generator(self.ir_images)
+        self.G = self.generator(self.ir_images)
         self.D = self.discriminator(self.normal_images) # real image output
         self.sampler = self.sampler(self.ir_test)
         self.D_ = self.discriminator(self.G, reuse=True) #fake image output
@@ -85,42 +83,37 @@ class DCGAN(object):
 
 
 	##### reconstruct NIR from scale invariant(David eigen NIPS 2014) ######
-	self.elt = self.train_light.get_shape()[0]*self.train_light.get_shape()[1] *self.train_light.get_shape()[2]*self.train_light.get_shape()[3]#number of elememt
-	self.elt = tf.cast(self.elt,tf.float32)
-	self.ir_images2 = tf.div(tf.add(self.ir_images,1.0),2.0)
-	self.ir_images2 = tf.clip_by_value(self.ir_images2,1e-10,1.0)
-	self.ir_images3 = tf.sqrt(tf.reduce_sum(tf.pow(self.ir_images2,2.),3)) 
-	self.ir_images3 = tf.expand_dims(self.ir_images3,-1)
-	self.ir_images2 = tf.div(self.ir_images2,self.ir_images3)
-	self.ir_images2 = tf.clip_by_value(self.ir_images2,1e-10,1.0)
-        self.gt_log  = tf.log(self.ir_images2)
+	#### To reconver NIR, Surface normale should be -1~ 1
+	self.scale_inv,self.recon_NIR = scale_inv(self.G,self.ir_images,self.train_mask,self.train_light)
+	"""
+	self.gt_log  = tf.log(self.ir_images)
 	self.gt_log = tf.mul(self.gt_log,self.train_mask)
+	self.gt_log = tf.clip_by_value(self.gt_log,1e-10,1.0)
+	#norm surface normal
+	exp10 = tf.ones_like(self.G)
+	exp10  = tf.mul(exp10,1e-10)
+	self.tmp = tf.sqrt(tf.reduce_sum(tf.pow(self.G,2.),3))
+	self.tmp2 = tf.equal(self.tmp,tf.constant(0.0))
+	self.tmp = tf.select(self.tmp2,self.tmp,exp10)
+	self.G_nor = tf.div(self.G,self.tmp)
 	
-	self.G2 = tf.div(tf.add(self.G,1.0),2.0) 
-	self.G2 = tf.clip_by_value(self.G2,1e-10,1.0)
-	self.nor_G = tf.sqrt(tf.reduce_sum(tf.pow(self.G2,2.),3)) 
-	self.nor_G = tf.expand_dims(self.nor_G,-1)
-	self.nor_G = tf.div(self.G2,self.nor_G)
-	self.recon_NIR = tf.expand_dims(tf.reduce_sum(tf.mul(self.G,self.train_light),3),-1)
-	self.recon_NIR = tf.clip_by_value(self.recon_NIR,1e-10,1.0)
-	self.recon_NIR_log = tf.log(self.recon_NIR)
-	self.recon_NIR_log = tf.mul(self.recon_NIR_log,self.train_mask)
+	self.recon_NIR = tf.expand_dims(tf.reduce_sum(tf.mul(self.G_nor,self.train_light),3),-1)
+	self.recon_NIR2 = tf.div(tf.add(self.recon_NIR,1.0),2.0) # convert to 0~1
+	self.recon_NIR2 = tf.mul(self.recon_NIR2,self.train_mask)
+	self.recon_NIR2 = tf.clip_by_value(self.recon_NIR2,1e-10,1.0)
+	self.recon_NIR_log = tf.log(self.recon_NIR2)
 
 	self.diff_log = tf.sub(self.recon_NIR_log,self.gt_log)
-	self.scale_inv = tf.reduce_mean(tf.pow(self.diff_log,2)) - tf.mul(tf.div(tf.pow(tf.reduce_sum(self.diff_log),2),tf.pow(self.elt,2)),0.5)
-	#self.scale_inv = tf.div(tf.reduce_sum(tf.pow(self.diff_log,2)),self.elt) - tf.div(tf.pow(tf.reduce_sum(self.diff_log),2),tf.pow(self.elt,2))
-
+	self.scale_inv = tf.reduce_mean(tf.square(self.diff_log)) - tf.mul(tf.div(tf.square(tf.reduce_sum(self.diff_log)),4096),0.5) # 4096 =64*64
+        """
 	# reconstructing should be positive NIR >0
 	#maksing mask
-	self.recon_NIR2 = tf.mul(self.train_light,self.nonactive_G)
-	self.masked_NIR = tf.mul(self.train_mask,self.recon_NIR2)
-	self.hing_loss = tf.reduce_mean(tf.maximum(tf.neg(self.recon_NIR2),0.))
+	self.masked_NIR = tf.mul(self.train_mask,self.recon_NIR)
+	self.hing_loss = tf.reduce_mean(tf.maximum(tf.neg(self.masked_NIR),0.))
 
 	#normal error
-	self.ang_loss = norm_(self.G,self.normal_images)
-        #self.ang_loss = tf.py_func(norm_,[self.G,self.normal_images],[tf.float64])
-        #self.ang_loss  = tf.to_float(self.ang_loss[0],name='ToFloat')
-        self.L2_loss = tf.reduce_mean(tf.square(tf.sub(self.G,self.normal_images)))
+	self.ang_loss = norm_(self.G,self.normal_images,self.train_mask)
+        self.L2_loss = tf.sqrt(tf.reduce_mean(tf.square(tf.sub(self.G,self.normal_images))))
 
         self.g_loss = binary_cross_entropy_with_logits(tf.ones_like(self.D_), self.D_)
         self.gen_loss = self.g_loss * self.lambda_g + self.L2_loss*self.lambda_L2 + self.hing_loss * self.lambda_hing + self.scale_inv * self.lambda_scale + self.ang_loss * self.lambda_ang
@@ -146,14 +139,17 @@ class DCGAN(object):
         """Train DCGAN"""
 
         global_step = tf.Variable(0,name='global_step',trainable=False)
-        learning_rate = tf.train.exponential_decay(0.0002,global_step,2000,0.95,staircase=True)
-        d_optim = tf.train.AdamOptimizer(learning_rate, beta1=config.beta1) \
+        decay_learning_rate = tf.train.exponential_decay(config.learning_rate,global_step,12000,0.95,staircase=True)
+        d_optim = tf.train.AdamOptimizer(decay_learning_rate, beta1=config.beta1) \
                           .minimize(self.d_loss, global_step=global_step,var_list=self.d_vars)
-        g_optim = tf.train.AdamOptimizer(learning_rate, beta1=config.beta1) \
+        g_optim = tf.train.AdamOptimizer(decay_learning_rate, beta1=config.beta1) \
                           .minimize(self.gen_loss,global_step=global_step, var_list=self.g_vars)
         tf.initialize_all_variables().run()
-
-        self.g_sum = tf.merge_summary([self.d__sum,self.d_loss_fake_sum, self.g_loss_sum,self.l2_loss_sum,self.ang_loss_sum,self.scale_inv_sum,self.hing_loss_sum])
+	
+	if not global_step.eval() ==0 and np.mod(global_step.eval(),12000)==0:
+	    self.lambda_scale *= 10
+        
+	self.g_sum = tf.merge_summary([self.d__sum,self.d_loss_fake_sum, self.g_loss_sum,self.l2_loss_sum,self.ang_loss_sum,self.scale_inv_sum,self.hing_loss_sum])
         self.d_sum = tf.merge_summary([self.d_sum, self.d_loss_real_sum, self.d_loss_sum])
         self.writer = tf.train.SummaryWriter(os.path.join("./logs",time.strftime('%d%m')), self.sess.graph_def)
                 
@@ -192,7 +188,7 @@ class DCGAN(object):
 		batch_images = np.reshape(batches[:,:,:,0],[config.batch_size,64,64,1])
 		batch_light = np.reshape(batches[:,:,:,1:4],[config.batch_size,64,64,3])
 		batch_mask = np.reshape(batches[:,:,:,4],[config.batch_size,64,64,1])
-                batchlabel_images = batches[:,:,:,5:]
+                batchlabel_images = np.reshape(batches[:,:,:,5:],[config.batch_size,64,64,3])
 
                 # Update D network
                 _, summary_str= self.sess.run([d_optim, self.d_sum], feed_dict={self.normal_images: batchlabel_images,
@@ -204,12 +200,11 @@ class DCGAN(object):
 		self.ang_loss,self.hing_loss,self.scale_inv], feed_dict={ self.ir_images: batch_images,self.normal_images: batchlabel_images,\
 		self.train_light:batch_light,self.train_mask:batch_mask})
                 self.writer.add_summary(summary_str, global_step.eval())
-		"""
-                _, summary_str,g_loss,L2_loss,ang_loss,hing_loss,scale_inv = self.sess.run([g_optim, self.g_sum,self.g_loss,self.L2_loss,\
+                
+		_, summary_str,g_loss,L2_loss,ang_loss,hing_loss,scale_inv = self.sess.run([g_optim, self.g_sum,self.g_loss,self.L2_loss,\
 		self.ang_loss,self.hing_loss,self.scale_inv], feed_dict={ self.ir_images: batch_images,self.normal_images: batchlabel_images,\
-		self.train_light:batch_light})
+		self.train_light:batch_light,self.train_mask:batch_mask})
                 self.writer.add_summary(summary_str, global_step.eval())
-		"""
 		print("Epoch: [%2d] [%4d/%4d] time: %4.4f g_loss: %.4f L2_loss:%.4f ang_loss:%.4f hing_loss:%.4f scale_inv:%.4f" \
 		% (epoch, idx, batch_idxs,time.time() - start_time,g_loss,L2_loss,ang_loss,hing_loss,scale_inv))
 
@@ -227,13 +222,18 @@ class DCGAN(object):
 	            input_ = scipy.misc.imresize(input_,[600,800])
 	            input_ = input_/127.5 - 1.0
 		    input_ = np.reshape(input_,[1,600,800,1])
+		    mask_  = [input_ >-1.][0]*1.0
+		    mask_ = np.reshape(mask_,(600,800,1))
 		    sample = self.sess.run([self.sampler],feed_dict={self.ir_test: input_})
                     sample = np.squeeze(sample).astype(np.float32)
-		    output = np.zeros((600,800,3)).astype(np.float32)
-                    output[:,:,0] = sample[:,:,0]/(np.sqrt(np.power(sample[:,:,0],2) + np.power(sample[:,:,1],2) + np.power(sample[:,:,2],2)))
-                    output[:,:,1] = sample[:,:,1]/(np.sqrt(np.power(sample[:,:,0],2) + np.power(sample[:,:,1],2) + np.power(sample[:,:,2],2)))
-                    output[:,:,2] = sample[:,:,2]/(np.sqrt(np.power(sample[:,:,0],2) + np.power(sample[:,:,1],2) + np.power(sample[:,:,2],2)))
+	            sample = (sample +1.0)/2.0
+		    sample = sample * mask_
+		    sample = np.clip(sample,1e-10,1.0)	
+		    output = np.sqrt(np.sum(np.power(sample,2),axis=2))
+		    output = np.expand_dims(output,axis=-1)
+		    output = sample/output
                     output[output ==inf] = 0.0
+		    
 		    if not os.path.exists(os.path.join(config.sample_dir,'save%03d'%list_val[idx2],'%d' %tilt)):
                         os.makedirs(os.path.join(config.sample_dir,'save%03d'%list_val[idx2],'%d' %tilt))	
 		    save_normal(output,os.path.join(config.sample_dir,'save%03d' %list_val[idx2],'%d' %tilt,'preditced_%06d.png' %epoch))
@@ -265,11 +265,9 @@ class DCGAN(object):
         h4 = conv2d(h3,self.gf_dim*2,d_h=1,d_w=1, name='g_h4')
         h4 = tf.nn.relu(self.g_bn4(h4))
         
-        h5 = conv2d(h4,self.gf_dim,d_h=1,d_w=1, name='g_h5')
-        h5 = tf.nn.relu(self.g_bn5(h5))
-	h6 = conv2d(h5,3, d_h=1,d_w=1, name='g_h6')
+	h5 = conv2d(h4,3, d_h=1,d_w=1, name='g_h5')
     
-        return tf.nn.tanh(h6),h6
+        return tf.nn.tanh(h5)
 
     def sampler(self,images, y=None):
         tf.get_variable_scope().reuse_variables()    
@@ -284,10 +282,8 @@ class DCGAN(object):
     
         h4 = conv2d(h3,self.gf_dim*2,d_h=1,d_w=1, name='g_h4')
         h4 = tf.nn.relu(self.g_bn4(h4,train=False))
-        h5 = conv2d(h4,self.gf_dim,d_h=1,d_w=1, name='g_h5')
-        h5 = tf.nn.relu(self.g_bn5(h5,train=False))
-        h6 = conv2d(h5,3, d_h=1,d_w=1, name='g_h6')
-        return tf.nn.tanh(h6)
+        h5 = conv2d(h4,3, d_h=1,d_w=1, name='g_h5')
+        return tf.nn.tanh(h5)
 
     def save(self, checkpoint_dir, step):
         model_name = "DCGAN.model"
@@ -315,4 +311,6 @@ class DCGAN(object):
         else:
             return False
 
-	        
+	    
+
+
