@@ -32,9 +32,9 @@ class DCGAN(object):
         self.checkpoint_dir = checkpoint_dir
 	
 	self.lambda_ang = 1.0
-        self.lambda_g = 1.0
-        self.lambda_L2 = 100.0
-	self.lambda_scale = 1.0
+        self.lambda_g = 0.001
+        self.lambda_L2 = 1.0
+	self.lambda_scale = 0.0001
         self.lambda_hing = 1.0
         
 
@@ -147,9 +147,6 @@ class DCGAN(object):
         
 	tf.initialize_all_variables().run()
 	
-	if not global_step.eval() ==0 and np.mod(global_step.eval(),12000)==0:
-	    self.lambda_scale *= 10
-        
 	self.g_sum = tf.merge_summary([self.d__sum,self.d_loss_fake_sum, self.g_loss_sum,self.l2_loss_sum,self.ang_loss_sum,self.scale_inv_sum,self.hing_loss_sum])
         self.d_sum = tf.merge_summary([self.d_sum, self.d_loss_real_sum, self.d_loss_sum])
         self.writer = tf.train.SummaryWriter(os.path.join("./logs",time.strftime('%d%m')), self.sess.graph_def)
