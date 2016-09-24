@@ -155,28 +155,33 @@ def linear(input_, output_size, scope=None, stddev=0.02, bias_start=0.0, with_w=
         else:
             return tf.matmul(input_, matrix) + bias
 
-def scale_inv(output,GT,mask,light):
-    num_elt = GT.get_shape()[0] *GT.get_shape()[1] * GT.get_shape()[2] *GT.get_shape()[3]
-    gt_log  = tf.log(GT)
-    gt_log = tf.mul(gt_log,mask)
-    gt_log = tf.clip_by_value(gt_log,1e-10,1.0)
+def scale_invariant(output,GT,mask,light):
+    num_elt = tf.to_float(GT.get_shape()[0] *GT.get_shape()[1] * GT.get_shape()[2] *GT.get_shape()[3])
+    #GT = tf.div(tf.add(GT,1.),2.)
+    #gt_log  = tf.log(GT)
+    #gt_log = tf.mul(gt_log,mask)
+    #gt_log = tf.clip_by_value(gt_log,1e-10,1.0)
+
     #norm surface normal
     tmp = tf.sqrt(tf.reduce_sum(tf.square(output),3))
-    exp10 = tf.ones_like(tmp)
-    exp10  = tf.mul(exp10,1e-10)
-    tmp2 = tf.equal(tmp,tf.constant(0.0))
-    tmp = tf.select(tmp2,exp10,tmp)
+    #exp10 = tf.ones_like(tmp)
+    #exp10  = tf.mul(exp10,1e-10)
+    #tmp2 = tf.equal(tmp,tf.constant(0.0))
+    #tmp = tf.select(tmp2,exp10,tmp)
     tmp = tf.expand_dims(tmp,-1)
     output_nor = tf.div(output,tmp)
     recon_NIR = tf.expand_dims(tf.reduce_sum(tf.mul(output_nor,light),3),-1)
-    recon_NIR2 = tf.div(tf.add(recon_NIR,1.0),2.0) # convert to 0~1
-    recon_NIR2 = tf.mul(recon_NIR2,mask)
-    recon_NIR2 = tf.clip_by_value(recon_NIR2,1e-10,1.0)
-    recon_NIR_log = tf.log(recon_NIR2)
+    
+    #recon_NIR2 = tf.div(tf.add(recon_NIR,1.0),2.0) # convert to 0~1
+    #recon_NIR2 = tf.mul(recon_NIR2,mask)
+    #recon_NIR2 = tf.clip_by_value(recon_NIR2,1e-10,1.0)
+    #recon_NIR_log = tf.log(recon_NIR2)
 
-    diff_log = tf.sub(recon_NIR_log,gt_log)
+    diff_log = tf.sub(recon_NIR,GT)
     scale_inv1 = tf.reduce_mean(tf.square(diff_log))
-    scale_inv2 = tf.mul(tf.div(tf.square(tf.reduce_sum(diff_log)),tf.to_float(tf.square(num_elt))),0.5) 
-    scale_inv = scale_inv1 - scale_inv2
-    return scale_inv,recon_NIR
+    scale_inv2 = tf.square(tf.reduce_sum(diff_log))
+    scale_inv3 = tf.div(scale_inv2,tf.square(num_elt))
+    scale_inv = scale_inv1 - scale_inv3
+    return [scale_inv,recon_NIR]
+
 

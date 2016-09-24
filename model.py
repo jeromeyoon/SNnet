@@ -34,7 +34,7 @@ class DCGAN(object):
 	self.lambda_ang = 1.0
         self.lambda_g = 0.001
         self.lambda_L2 = 1.0
-	self.lambda_scale = 0.0
+	self.lambda_scale = 1.0
         self.lambda_hing = 1.0
         
 
@@ -84,13 +84,11 @@ class DCGAN(object):
 
 	##### reconstruct NIR from scale invariant(David eigen NIPS 2014) ######
 	#### To reconver NIR, Surface normale should be -1~ 1
-	self.scale_inv,self.recon_NIR = scale_inv(self.G,self.ir_images,self.train_mask,self.train_light)
-	
+	self.scale_inv,self.recon_NIR = scale_invariant(self.G,self.ir_images,self.train_mask,self.train_light)
 	# reconstructing should be positive NIR >0
 	#maksing mask
 	self.masked_NIR = tf.mul(self.train_mask,self.recon_NIR)
 	self.hing_loss = tf.reduce_mean(tf.maximum(tf.neg(self.masked_NIR),0.))
-
 	#normal error
 	self.ang_loss = norm_(self.G,self.normal_images,self.train_mask)
         self.L2_loss = tf.sqrt(tf.reduce_mean(tf.square(tf.sub(self.G,self.normal_images))))
@@ -160,6 +158,12 @@ class DCGAN(object):
 	    mean_ang_loss = 0.0
             mean_scale_loss = 0.0
 	    mean_hinge_loss =0.0	    
+	    if epoch == 0:
+		train_log = open('logs/'+time.strftime('%d%m')+'/log_train.csv','w')
+		train_log.write('epoch,mean_g_loss,mean_L2_loss,mean_ang_loss,mean_scale_loss,mean_hinge_loss \n')
+	    else:
+		train_log = open('logs/'+time.strftime('%d%m')+'/log_train.csv','a')
+
             for idx in xrange(0, batch_idxs):
                 batch_files = shuffle[idx*config.batch_size:(idx+1)*config.batch_size]
 
@@ -171,7 +175,6 @@ class DCGAN(object):
 		batch_light = np.reshape(batches[:,:,:,1:4],[config.batch_size,64,64,3])
 		batch_mask = np.reshape(batches[:,:,:,4],[config.batch_size,64,64,1])
                 batchlabel_images = np.reshape(batches[:,:,:,5:],[config.batch_size,64,64,3])
-
                 # Update D network
                 _, summary_str= self.sess.run([d_optim, self.d_sum], feed_dict={self.normal_images: batchlabel_images,
                                                                                  self.ir_images: batch_images,self.train_light:batch_light })
@@ -182,28 +185,22 @@ class DCGAN(object):
 		self.ang_loss,self.hing_loss,self.scale_inv], feed_dict={ self.ir_images: batch_images,self.normal_images: batchlabel_images,\
 		self.train_light:batch_light,self.train_mask:batch_mask})
                 self.writer.add_summary(summary_str, global_step.eval())
-                
+
+		"""
 		_, summary_str,g_loss,L2_loss,ang_loss,hing_loss,scale_inv = self.sess.run([g_optim, self.g_sum,self.g_loss,self.L2_loss,\
 		self.ang_loss,self.hing_loss,self.scale_inv], feed_dict={ self.ir_images: batch_images,self.normal_images: batchlabel_images,\
 		self.train_light:batch_light,self.train_mask:batch_mask})
                 self.writer.add_summary(summary_str, global_step.eval())
+		"""
 		print("Epoch: [%2d] [%4d/%4d] time: %4.4f g_loss: %.4f L2_loss:%.4f ang_loss:%.4f hing_loss:%.4f scale_inv:%.4f" \
 		% (epoch, idx, batch_idxs,time.time() - start_time,g_loss,L2_loss,ang_loss,hing_loss,scale_inv))
-
 		mean_g_loss += g_loss/batch_idxs
 		mean_L2_loss += L2_loss/batch_idxs
 		mean_ang_loss += ang_loss/batch_idxs
 		mean_scale_loss += scale_inv/batch_idxs
 		mean_hinge_loss += hing_loss/batch_idxs
 	    print('epoch:%d ,mean_g_loss:%.4f ,mean_L2_loss:%.4f ,mean_ang_loss:%.4f ,mean_scale_loss:%.4f, mean_hinge_loss:%.4f \n' %(epoch,mean_g_loss,mean_L2_loss,mean_ang_loss,mean_scale_loss,mean_hinge_loss))
-	    if epoch == 0:
-		train_los = open('logs/'+time.strftime('%d%m')+'/log_train.csv','w')
-		train_log.write('epoch,mean_g_loss,mean_L2_loss,mean_ang_loss,mean_scale_loss,mean_hinge_loss \n')
-		train_log.write(str(epoch) +','+ str(mean_g_loss) +','+ str(mean_L2_loss) +','+ str(mean_ang_loss) +','+ str(mean_scale_loss) +','+ str(mean_hinge_loss)) 
-	    else:
-		train_los = open('logs/'+time.strftime('%d%m')+'/log_train.csv','a')
-		train_log.write(str(epoch) +','+ str(mean_g_loss) +','+ str(mean_L2_loss) +','+ str(mean_ang_loss) +','+ str(mean_scale_loss) +','+ str(mean_hinge_loss)) 
-
+	    train_log.write(str(epoch) +','+ str(mean_g_loss) +','+ str(mean_L2_loss) +','+ str(mean_ang_loss) +','+ str(mean_scale_loss) +','+ str(mean_hinge_loss)) 
 
  	    for idx2 in xrange(0,len(list_val)):
 		for tilt in range(1,10):	
