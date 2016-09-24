@@ -85,27 +85,7 @@ class DCGAN(object):
 	##### reconstruct NIR from scale invariant(David eigen NIPS 2014) ######
 	#### To reconver NIR, Surface normale should be -1~ 1
 	self.scale_inv,self.recon_NIR = scale_inv(self.G,self.ir_images,self.train_mask,self.train_light)
-	"""
-	self.gt_log  = tf.log(self.ir_images)
-	self.gt_log = tf.mul(self.gt_log,self.train_mask)
-	self.gt_log = tf.clip_by_value(self.gt_log,1e-10,1.0)
-	#norm surface normal
-	exp10 = tf.ones_like(self.G)
-	exp10  = tf.mul(exp10,1e-10)
-	self.tmp = tf.sqrt(tf.reduce_sum(tf.pow(self.G,2.),3))
-	self.tmp2 = tf.equal(self.tmp,tf.constant(0.0))
-	self.tmp = tf.select(self.tmp2,self.tmp,exp10)
-	self.G_nor = tf.div(self.G,self.tmp)
 	
-	self.recon_NIR = tf.expand_dims(tf.reduce_sum(tf.mul(self.G_nor,self.train_light),3),-1)
-	self.recon_NIR2 = tf.div(tf.add(self.recon_NIR,1.0),2.0) # convert to 0~1
-	self.recon_NIR2 = tf.mul(self.recon_NIR2,self.train_mask)
-	self.recon_NIR2 = tf.clip_by_value(self.recon_NIR2,1e-10,1.0)
-	self.recon_NIR_log = tf.log(self.recon_NIR2)
-
-	self.diff_log = tf.sub(self.recon_NIR_log,self.gt_log)
-	self.scale_inv = tf.reduce_mean(tf.square(self.diff_log)) - tf.mul(tf.div(tf.square(tf.reduce_sum(self.diff_log)),4096),0.5) # 4096 =64*64
-        """
 	# reconstructing should be positive NIR >0
 	#maksing mask
 	self.masked_NIR = tf.mul(self.train_mask,self.recon_NIR)
@@ -174,7 +154,11 @@ class DCGAN(object):
             shuffle = np.random.permutation(range(len(data)))
             batch_idxs = min(len(data), config.train_size)/config.batch_size
     
-	    
+	    mean_g_loss = 0.0
+	    mean_L2_loss = 0.0
+	    mean_ang_loss = 0.0
+            mean_scale_loss = 0.0
+	    mean_hinge_loss =0.0	    
             for idx in xrange(0, batch_idxs):
                 batch_files = shuffle[idx*config.batch_size:(idx+1)*config.batch_size]
 
@@ -205,11 +189,19 @@ class DCGAN(object):
 		print("Epoch: [%2d] [%4d/%4d] time: %4.4f g_loss: %.4f L2_loss:%.4f ang_loss:%.4f hing_loss:%.4f scale_inv:%.4f" \
 		% (epoch, idx, batch_idxs,time.time() - start_time,g_loss,L2_loss,ang_loss,hing_loss,scale_inv))
 
-		"""
-                # Run g_optim twice to make sure that d_loss does not go to zero (different from paper)
-                _, summary_str = self.sess.run([g_optim, self.g_sum], feed_dict={ self.ir_images: batch_images,self.normal_images: batchlabel_images  })
-                self.writer.add_summary(summary_str, global_step)
-		"""
+		mean_g_loss += g_loss/batch_idxs
+		mean_L2_loss += L2_loss/batch_idxs
+		mean_ang_loss += ang_loss/batch_idxs
+		mean_scale_loss += scale_inv/batch_idxs
+		mean_hinge_loss += hing_loss/batch_idxs
+	    if epoch == 0:
+		train_los = open('log_train_' + time.strftim('%d%m')+'.csv','w')
+		train_log.write('epoch,mean_g_loss,mean_L2_loss,mean_ang_loss,mean_scale_loss,mean_hinge_loss \n')
+		train_log.write(epoch','mean_g_loss','mean_L2_loss,',',mean_ang_loss,',',mean_scale_loss','mean_hinge_loss' \n')
+	    else
+		train_los = open('log_train.csv','a')
+		train_log.write(epoch','mean_g_loss','mean_L2_loss,',',mean_ang_loss,',',mean_scale_loss','mean_hinge_loss' \n')
+
 
  	    for idx2 in xrange(0,len(list_val)):
 		for tilt in range(1,10):	
