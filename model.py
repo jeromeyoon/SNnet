@@ -34,7 +34,7 @@ class DCGAN(object):
 	self.lambda_ang = 1.0
         self.lambda_g = 0.001
         self.lambda_L2 = 1.0
-	self.lambda_scale = 0.0001
+	self.lambda_scale = 0.0
         self.lambda_hing = 1.0
         
 
@@ -120,10 +120,11 @@ class DCGAN(object):
 
         global_step = tf.Variable(0,name='global_step',trainable=False)
 	self.learning_rate_op = tf.maximum(config.g_learning_rate_minimum,\
-				          tf.train.exponential_decay(config.g_learning_rate,12000,0.95,staircase=True))
+				          tf.train.exponential_decay(config.g_learning_rate,global_step,12000,0.95,staircase=True))
 	d_optim = tf.train.AdamOptimizer(config.d_learning_rate, beta1=config.beta1) \
                           .minimize(self.d_loss, global_step=global_step,var_list=self.d_vars)
-        g_optim = tf.train.AdamOptimizer(decay_learning_rate, beta1=config.beta1) \
+        g_optim = tf.train.AdamOptimizer(self.learning_rate_op, beta1=config.beta1) \
+                          .minimize(self.gen_loss, global_step=global_step,var_list=self.g_vars)
         
 	tf.initialize_all_variables().run()
 	
@@ -194,13 +195,14 @@ class DCGAN(object):
 		mean_ang_loss += ang_loss/batch_idxs
 		mean_scale_loss += scale_inv/batch_idxs
 		mean_hinge_loss += hing_loss/batch_idxs
+	    print('epoch:%d ,mean_g_loss:%.4f ,mean_L2_loss:%.4f ,mean_ang_loss:%.4f ,mean_scale_loss:%.4f, mean_hinge_loss:%.4f \n' %(epoch,mean_g_loss,mean_L2_loss,mean_ang_loss,mean_scale_loss,mean_hinge_loss))
 	    if epoch == 0:
-		train_los = open('log_train_' + time.strftim('%d%m')+'.csv','w')
+		train_los = open('logs/'+time.strftime('%d%m')+'/log_train.csv','w')
 		train_log.write('epoch,mean_g_loss,mean_L2_loss,mean_ang_loss,mean_scale_loss,mean_hinge_loss \n')
-		train_log.write(epoch','mean_g_loss','mean_L2_loss,',',mean_ang_loss,',',mean_scale_loss','mean_hinge_loss' \n')
-	    else
-		train_los = open('log_train.csv','a')
-		train_log.write(epoch','mean_g_loss','mean_L2_loss,',',mean_ang_loss,',',mean_scale_loss','mean_hinge_loss' \n')
+		train_log.write(str(epoch) +','+ str(mean_g_loss) +','+ str(mean_L2_loss) +','+ str(mean_ang_loss) +','+ str(mean_scale_loss) +','+ str(mean_hinge_loss)) 
+	    else:
+		train_los = open('logs/'+time.strftime('%d%m')+'/log_train.csv','a')
+		train_log.write(str(epoch) +','+ str(mean_g_loss) +','+ str(mean_L2_loss) +','+ str(mean_ang_loss) +','+ str(mean_scale_loss) +','+ str(mean_hinge_loss)) 
 
 
  	    for idx2 in xrange(0,len(list_val)):
