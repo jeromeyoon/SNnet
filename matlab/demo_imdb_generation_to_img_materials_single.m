@@ -19,9 +19,9 @@ savePath = '/research2/IR_normal_small/journal/save%03d/%03d/' ;
 sub_Path = '%d/' ;
 %1 to 9
 img_Format = '*.bmp' ;
-sve_dt_Format = '%03d.png' ;
-sve_light_Format = '%03d_light.png' ;
-sve_gt_Format = '%03d_gt.png' ;
+sve_dt_Format = '%06d.png' ;
+sve_light_Format = '%06d_light.png' ;
+sve_gt_Format = '%06d_gt.png' ;
 
 %val_s = 1 ;
 sample=[1,2,3,4,5,6,7,8,9,10,11,12,13];
@@ -71,7 +71,7 @@ for i = 1 : 101,
         
         mask = im2bw(imo(:,:,end-2:end),0.05) ;
         
-        step_slide = 64;%104;
+        step_slide = 104;
         size_slide = 224 ;
         h_slide = floor((size(mask,1)-size_slide)/step_slide) ; 
         w_slide = floor((size(mask,2)-size_slide)/step_slide) ;

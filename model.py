@@ -139,12 +139,13 @@ class DCGAN(object):
         """Train DCGAN"""
 
         global_step = tf.Variable(0,name='global_step',trainable=False)
-        decay_learning_rate = tf.train.exponential_decay(config.learning_rate,global_step,12000,0.95,staircase=True)
-        d_optim = tf.train.AdamOptimizer(decay_learning_rate, beta1=config.beta1) \
+	self.learning_rate_op = tf.maximum(config.g_learning_rate_minimum,\
+				          tf.train.exponential_decay(config.g_learning_rate,12000,0.95,staircase=True))
+	d_optim = tf.train.AdamOptimizer(config.d_learning_rate, beta1=config.beta1) \
                           .minimize(self.d_loss, global_step=global_step,var_list=self.d_vars)
         g_optim = tf.train.AdamOptimizer(decay_learning_rate, beta1=config.beta1) \
-                          .minimize(self.gen_loss,global_step=global_step, var_list=self.g_vars)
-        tf.initialize_all_variables().run()
+        
+	tf.initialize_all_variables().run()
 	
 	if not global_step.eval() ==0 and np.mod(global_step.eval(),12000)==0:
 	    self.lambda_scale *= 10
@@ -164,7 +165,6 @@ class DCGAN(object):
         data = json.load(open("/research2/ECCV_journal/with_light/json/traininput.json"))
         data_light = json.load(open("/research2/ECCV_journal/with_light/json/trainlight.json"))
         data_label = json.load(open("/research2/ECCV_journal/with_light/json/traingt.json"))
-
         datalist =[data[idx] for idx in xrange(0,len(data))]
         datalightlist =[data_light[idx] for idx in xrange(0,len(data))]
         labellist =[data_label[idx] for idx in xrange(0,len(data))]
