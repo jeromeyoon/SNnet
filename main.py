@@ -30,6 +30,7 @@ flags.DEFINE_string("sample_dir", "output", "Directory name to save the image sa
 flags.DEFINE_boolean("is_train", False, "True for training, False for testing [False]")
 flags.DEFINE_boolean("is_crop", False, "True for training, False for testing [False]")
 flags.DEFINE_integer("input_size", 64, "The size of image input size")
+flags.DEFINE_string("model", "narrow","selecting narrow or deeper model")
 flags.DEFINE_float("gpu",0.5,"GPU fraction per process")
 FLAGS = flags.FLAGS
 
@@ -52,9 +53,14 @@ def main(_):
     gpu_config = tf.GPUOptions(per_process_gpu_memory_fraction=FLAGS.gpu)
     with tf.Session(config=tf.ConfigProto(gpu_options=gpu_config)) as sess:
         if FLAGS.is_train:
-            dcgan = DCGAN(sess, image_size=FLAGS.image_size, batch_size=FLAGS.batch_size, input_size=FLAGS.input_size,
-                      dataset_name=FLAGS.dataset,
-                      is_crop=FLAGS.is_crop, checkpoint_dir=FLAGS.checkpoint_dir)
+	    if FLAGS.model=="narrow":
+                dcgan = DCGAN(sess, image_size=FLAGS.image_size, batch_size=FLAGS.batch_size,\
+	        input_size=FLAGS.input_size,dataset_name=FLAGS.dataset,is_crop=FLAGS.is_crop, checkpoint_dir=FLAGS.checkpoint_dir)
+	    else:
+
+                dcgan = Deep_DCGAN(sess, image_size=FLAGS.image_size, batch_size=FLAGS.batch_size,\
+	        input_size=FLAGS.input_size,dataset_name=FLAGS.dataset,is_crop=FLAGS.is_crop, checkpoint_dir=FLAGS.checkpoint_dir)
+		
         else:
    
             dcgan = EVAL(sess, input_size = 600, batch_size=1,ir_image_shape=[None,None,1],normal_image_shape=[None,None,3],dataset_name=FLAGS.dataset,\
