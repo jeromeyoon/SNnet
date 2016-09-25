@@ -157,13 +157,15 @@ class DCGAN(object):
 	    mean_L2_loss = 0.0
 	    mean_ang_loss = 0.0
             mean_scale_loss = 0.0
-	    mean_hinge_loss =0.0	    
+	    mean_hinge_loss =0.0	   
+	   
+	    """ 
 	    if epoch == 0:
 		train_log = open('logs/'+time.strftime('%d%m')+'/log_train.csv','w')
 		train_log.write('epoch,mean_g_loss,mean_L2_loss,mean_ang_loss,mean_scale_loss,mean_hinge_loss \n')
 	    else:
 		train_log = open('logs/'+time.strftime('%d%m')+'/log_train.csv','a')
-
+            """
             for idx in xrange(0, batch_idxs):
                 batch_files = shuffle[idx*config.batch_size:(idx+1)*config.batch_size]
 
@@ -199,9 +201,11 @@ class DCGAN(object):
 		mean_ang_loss += ang_loss/batch_idxs
 		mean_scale_loss += scale_inv/batch_idxs
 		mean_hinge_loss += hing_loss/batch_idxs
+            
+	    """   
 	    print('epoch:%d ,mean_g_loss:%.4f ,mean_L2_loss:%.4f ,mean_ang_loss:%.4f ,mean_scale_loss:%.4f, mean_hinge_loss:%.4f \n' %(epoch,mean_g_loss,mean_L2_loss,mean_ang_loss,mean_scale_loss,mean_hinge_loss))
-	    train_log.write(str(epoch) +','+ str(mean_g_loss) +','+ str(mean_L2_loss) +','+ str(mean_ang_loss) +','+ str(mean_scale_loss) +','+ str(mean_hinge_loss)) 
-
+	    train_log.write(str(epoch) +','+ str(mean_g_loss) +','+ str(mean_L2_loss) +','+ str(mean_ang_loss) +','+ str(mean_scale_loss) +','+ str(mean_hinge_loss),'\n') 
+    	    """
  	    for idx2 in xrange(0,len(list_val)):
 		for tilt in range(1,10):	
 		    print("Epoch: [%2d] [%4d/%4d] " % (epoch, idx2, len(list_val)))
