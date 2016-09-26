@@ -32,10 +32,10 @@ class DCGAN(object):
         self.checkpoint_dir = checkpoint_dir
 	
 	self.lambda_ang = 1.0
-        self.lambda_g = 0.001
+        self.lambda_g = 1.0
         self.lambda_L2 = 1.0
 	self.lambda_scale = 1.0
-        self.lambda_hing = 1.0
+        self.lambda_hing = 0.0
         
 
 	# batch normalization : deals with poor initialization helps gradient flow
@@ -218,11 +218,11 @@ class DCGAN(object):
 		    mask_ = np.reshape(mask_,(600,800,1))
 		    sample = self.sess.run([self.sampler],feed_dict={self.ir_test: input_})
                     sample = np.squeeze(sample).astype(np.float32)
-	            sample = (sample +1.0)/2.0
-		    sample = sample * mask_
-		    sample = np.clip(sample,1e-10,1.0)	
+	            #sample = (sample +1.0)/2.0
+		    #sample = sample * mask_
+		    #sample = np.clip(sample,1e-10,1.0)	
 		    output = np.sqrt(np.sum(np.power(sample,2),axis=2))
-		    output = np.expand_dims(output,axis=-1)
+		    #output = np.expand_dims(output,axis=-1)
 		    output = sample/output
                     output[output ==inf] = 0.0
 		    

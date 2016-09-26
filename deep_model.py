@@ -34,8 +34,8 @@ class Deep_DCGAN(object):
 	self.lambda_ang = 1.0
         self.lambda_g = 0.001
         self.lambda_L2 = 1.0
-	self.lambda_scale = 1.0
-        self.lambda_hing = 1.0
+	self.lambda_scale = 0.0
+        self.lambda_hing = 0.0
         
 
 	# batch normalization : deals with poor initialization helps gradient flow
@@ -183,11 +183,6 @@ class Deep_DCGAN(object):
 		"""
 		print("Epoch: [%2d] [%4d/%4d] time: %4.4f g_loss: %.4f L2_loss:%.4f ang_loss:%.4f hing_loss:%.4f scale_inv:%.4f" \
 		% (epoch, idx, batch_idxs,time.time() - start_time,g_loss,L2_loss,ang_loss,hing_loss,scale_inv))
-		mean_g_loss += g_loss/batch_idxs
-		mean_L2_loss += L2_loss/batch_idxs
-		mean_ang_loss += ang_loss/batch_idxs
-		mean_scale_loss += scale_inv/batch_idxs
-		mean_hinge_loss += hing_loss/batch_idxs
             
  	    for idx2 in xrange(0,len(list_val)):
 		for tilt in range(1,10):	
@@ -197,13 +192,13 @@ class Deep_DCGAN(object):
 	            input_ = scipy.misc.imresize(input_,[600,800])
 	            input_ = input_/127.5 - 1.0
 		    input_ = np.reshape(input_,[1,600,800,1])
-		    mask_  = [input_ >-1.][0]*1.0
-		    mask_ = np.reshape(mask_,(600,800,1))
+		    #mask_  = [input_ >-1.][0]*1.0
+		    #mask_ = np.reshape(mask_,(600,800,1))
 		    sample = self.sess.run([self.sampler],feed_dict={self.ir_test: input_})
                     sample = np.squeeze(sample).astype(np.float32)
-	            sample = (sample +1.0)/2.0
-		    sample = sample * mask_
-		    sample = np.clip(sample,1e-10,1.0)	
+	            #sample = (sample +1.0)/2.0
+		    #sample = sample * mask_
+		    #sample = np.clip(sample,1e-10,1.0)	
 		    output = np.sqrt(np.sum(np.power(sample,2),axis=2))
 		    output = np.expand_dims(output,axis=-1)
 		    output = sample/output
@@ -219,13 +214,12 @@ class Deep_DCGAN(object):
         if reuse:
             tf.get_variable_scope().reuse_variables()
 	### yan lecun model (ICLR 2016)
-	
-        h0 = lrelu(conv2d(image, self.df_dim*2,k_h=5,k_w=5, name='d_h0_conv'))
-        h1 = lrelu(conv2d(h1, self.df_dim*4,k_h=5,k_w=5, name='d_h1_conv'))
-        h2 = lrelu(conv2d(h2, self.df_dim*8,k_h=5,k_w=5, name='d_h2_conv'))
-	h3 = linear(tf.reshape(h2,[self.batch_size -1]),1024,'d_h3_fc')
-	h4 = linear(h3,512,'d_h3_fc')
-	h5 = linear(h4,1,'d_h4_fc')
+        h0 = lrelu(conv2d(image, self.df_dim*2,k_h=5,k_w=5,padding='VALID', name='d_h0_conv'))
+        h1 = lrelu(conv2d(h0, self.df_dim*4,k_h=5,k_w=5, padding='VALID', name='d_h1_conv'))
+        h2 = lrelu(conv2d(h1, self.df_dim*8,k_h=5,k_w=5, padding='VALID', name='d_h2_conv'))
+	h3 = linear(tf.reshape(h2,[-1,int(np.prod(h2.get_shape()[1:]))]),1024,'d_h3_fc')
+	h4 = linear(h3,512,'d_h4_fc')
+	h5 = linear(h4,1,'d_h5_fc')
 	return tf.sigmoid(h5)
 	"""
         h0 = lrelu(conv2d(image, self.df_dim, name='d_h0_conv'))
@@ -254,12 +248,12 @@ class Deep_DCGAN(object):
         
 	h6 = conv2d(h5,3, d_h=1,d_w=1, name='g_h6')
     
-        return tf.nn.tanh(h5)
+        return tf.nn.tanh(h6)
 
     def sampler(self,images, y=None):
 
         tf.get_variable_scope().reuse_variables()    
-	h1 = conv2d(real_image,self.gf_dim*2,k_h=5,k_w=5,d_h=1,d_w=1, name='g_h1')
+	h1 = conv2d(images,self.gf_dim*2,k_h=5,k_w=5,d_h=1,d_w=1, name='g_h1')
         h1 = tf.nn.relu(self.g_bn1(h1))
     
         h2 = conv2d(h1,self.gf_dim*4,d_h=1,d_w=1, name='g_h2')
@@ -276,7 +270,7 @@ class Deep_DCGAN(object):
         
 	h6 = conv2d(h5,3, d_h=1,d_w=1, name='g_h6')
     
-        return tf.nn.tanh(h5)
+        return tf.nn.tanh(h6)
     
     def save(self, checkpoint_dir, step):
         model_name = "DCGAN.model"

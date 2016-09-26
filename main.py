@@ -5,7 +5,9 @@ import random
 import time 
 import json
 from model import DCGAN
+from deep_model import Deep_DCGAN
 from test import EVAL
+from deep_test import Deep_EVAL
 from utils import pp, save_images, to_json, make_gif, merge, imread, get_image
 import scipy.misc
 from numpy import inf
@@ -17,9 +19,9 @@ import matplotlib.image as mpimg
 import time
 flags = tf.app.flags
 flags.DEFINE_integer("epoch", 1000, "Epoch to train [25]")
-flags.DEFINE_float("g_learning_rate", 0.0001, "Learning rate of for adam [0.0002]")
+flags.DEFINE_float("g_learning_rate", 0.0002, "Learning rate of for adam [0.0002]")
 flags.DEFINE_float("g_learning_rate_minimum", 0.00001, "Learning rate of for adam [0.0002]")
-flags.DEFINE_float("d_learning_rate", 0.00001, "Learning rate of for adam [0.0002]")
+flags.DEFINE_float("d_learning_rate", 0.0002, "Learning rate of for adam [0.0002]")
 flags.DEFINE_float("beta1", 0.9, "Momentum term of adam [0.5]")
 flags.DEFINE_integer("train_size", np.inf, "The size of train images [np.inf]")
 flags.DEFINE_integer("batch_size", 16, "The size of batch images [64]")
@@ -30,7 +32,7 @@ flags.DEFINE_string("sample_dir", "output", "Directory name to save the image sa
 flags.DEFINE_boolean("is_train", False, "True for training, False for testing [False]")
 flags.DEFINE_boolean("is_crop", False, "True for training, False for testing [False]")
 flags.DEFINE_integer("input_size", 64, "The size of image input size")
-flags.DEFINE_string("model", "narrow","selecting narrow or deeper model")
+flags.DEFINE_string("model", "deep","selecting narrow or deeper model")
 flags.DEFINE_float("gpu",0.5,"GPU fraction per process")
 FLAGS = flags.FLAGS
 
@@ -62,9 +64,13 @@ def main(_):
 	        input_size=FLAGS.input_size,dataset_name=FLAGS.dataset,is_crop=FLAGS.is_crop, checkpoint_dir=FLAGS.checkpoint_dir)
 		
         else:
-   
-            dcgan = EVAL(sess, input_size = 600, batch_size=1,ir_image_shape=[None,None,1],normal_image_shape=[None,None,3],dataset_name=FLAGS.dataset,\
+  	    if FLAGS.model=="narrow"     :
+	        dcgan = EVAL(sess, input_size = 600, batch_size=1,ir_image_shape=[None,None,1],normal_image_shape=[None,None,3],dataset_name=FLAGS.dataset,\
                       is_crop=False, checkpoint_dir=FLAGS.checkpoint_dir)
+	    else:
+		dcgan = Deep_EVAL(sess, input_size = 600, batch_size=1,ir_image_shape=[None,None,1],normal_image_shape=[None,None,3],dataset_name=FLAGS.dataset,\
+                      is_crop=False, checkpoint_dir=FLAGS.checkpoint_dir)
+
 
         if FLAGS.is_train:
             dcgan.train(FLAGS)
@@ -167,7 +173,7 @@ def main(_):
                 list_val = [11,16,21,22,33,36,38,53,59,92]
 		save_files = glob.glob(os.path.join(FLAGS.checkpoint_dir,FLAGS.dataset,'DCGAN.model*'))
 		save_files  = natsorted(save_files)
-		savepath ='./L1__ang_loss_result'
+		savepath ='./RMSS_ang_scale_loss_result'
 		for model_idx in range(0,len(save_files),2):
 		    model = save_files[model_idx]
 		    model = model.split('/')
@@ -185,19 +191,15 @@ def main(_):
 
 			    input_  = (input_/127.5)-1. # normalize -1 ~1
 			    gt_ = scipy.misc.imresize(gt_,[600,800])
-			    #input_ = input_[240:840,515:1315]
-			    #gt_ = gt_[240:840,515:1315]
-			    input_ = np.reshape(input_,(1,600,800,1)) 
 			    gt_ = np.reshape(gt_,(1,600,800,3)) 
-			    input_ = np.array(input_).astype(np.float32)
 			    gt_ = np.array(gt_).astype(np.float32)
+			    input_ = np.reshape(input_,(1,600,800,1)) 
+			    input_ = np.array(input_).astype(np.float32)
 			    start_time = time.time() 
 			    sample = sess.run(dcgan.sampler, feed_dict={dcgan.ir_images: input_})
 			    print('time: %.8f' %(time.time()-start_time))     
 			    # normalization #
 			    sample = np.squeeze(sample).astype(np.float32)
-			    gt_ = np.squeeze(gt_).astype(np.float32)
-
 			    output = np.zeros((600,800,3)).astype(np.float32)
 			    output[:,:,0] = sample[:,:,0]/(np.sqrt(np.power(sample[:,:,0],2) + np.power(sample[:,:,1],2) + np.power(sample[:,:,2],2)))
 			    output[:,:,1] = sample[:,:,1]/(np.sqrt(np.power(sample[:,:,0],2) + np.power(sample[:,:,1],2) + np.power(sample[:,:,2],2)))
@@ -209,7 +211,6 @@ def main(_):
 			        os.makedirs(os.path.join(savepath,'%03d/%d' %(list_val[idx],idx2)))
 			    savename = os.path.join(savepath, '%03d/%d/single_normal_%s.bmp' % (list_val[idx],idx2,model))
 			    scipy.misc.imsave(savename, sample)
-
 
 	    elif VAL_OPTION ==4: # depends on light sources 
                 list_val = [11,16,21,22,33,36,38,53,59,92]
