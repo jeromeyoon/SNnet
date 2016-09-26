@@ -174,6 +174,8 @@ def main(_):
 		save_files = glob.glob(os.path.join(FLAGS.checkpoint_dir,FLAGS.dataset,'DCGAN.model*'))
 		save_files  = natsorted(save_files)
 		savepath ='./RMSS_ang_scale_loss_result'
+		max_h = 600
+		max_w = 800
 		for model_idx in range(0,len(save_files),2):
 		    model = save_files[model_idx]
 		    model = model.split('/')
@@ -186,31 +188,33 @@ def main(_):
 			    print("Selected material %03d/%d" % (list_val[idx],idx2))
 			    img = '/research2/IR_normal_small/save%03d/%d' % (list_val[idx],idx2)
 			    input_ = scipy.misc.imread(img+'/3.bmp').astype(float)
-			    gt_ = scipy.misc.imread('/research2/IR_normal_small/save016/1/12_Normal.bmp').astype(float)
 			    input_ = scipy.misc.imresize(input_,[600,800])
-
 			    input_  = (input_/127.5)-1. # normalize -1 ~1
-			    gt_ = scipy.misc.imresize(gt_,[600,800])
-			    gt_ = np.reshape(gt_,(1,600,800,3)) 
-			    gt_ = np.array(gt_).astype(np.float32)
-			    input_ = np.reshape(input_,(1,600,800,1)) 
-			    input_ = np.array(input_).astype(np.float32)
-			    start_time = time.time() 
-			    sample = sess.run(dcgan.sampler, feed_dict={dcgan.ir_images: input_})
-			    print('time: %.8f' %(time.time()-start_time))     
-			    # normalization #
-			    sample = np.squeeze(sample).astype(np.float32)
-			    output = np.zeros((600,800,3)).astype(np.float32)
-			    output[:,:,0] = sample[:,:,0]/(np.sqrt(np.power(sample[:,:,0],2) + np.power(sample[:,:,1],2) + np.power(sample[:,:,2],2)))
-			    output[:,:,1] = sample[:,:,1]/(np.sqrt(np.power(sample[:,:,0],2) + np.power(sample[:,:,1],2) + np.power(sample[:,:,2],2)))
-			    output[:,:,2] = sample[:,:,2]/(np.sqrt(np.power(sample[:,:,0],2) + np.power(sample[:,:,1],2) + np.power(sample[:,:,2],2)))
-   
-			    output[output ==inf] = 0.0
-			    sample = (output+1.)/2.
+			    overlap  = np.min(max_h,max_w) - 100
+			    step_h  = np.ceil(max_h,overlap) 
+			    step_w  = np.ceil(max_w,overlap) 
+			    result = np.zeros(input_.shape[0],input_.shape[1],input_.shape[2],step_h*step_w)
+		            tmp_result=[] 
+			    for h in range(0,input_.shape[0],overlap):
+			        for w in range(0,input_.shape[1],overlap):
+				     crop_input_ = input_[h:h+max_h,w:w+max_w]
+			             crop_input_ = np.reshape(crop_input_,(max_h,max_w,1)) 
+  			             crop_intpu_ = np.array(crop_input_).astype(np.float32)
+			             start_time = time.time() 
+			             sample = sess.run(dcgan.sampler, feed_dict={dcgan.ir_images: crop_input_})
+			    	     print('time: %.8f' %(time.time()-start_time))     
+               			     # normalization #
+			             sample = np.squeeze(sample).astype(np.float32)
+	  			     output = np.sqrt(np.sum(np.square(sample),axis=2))
+			    	     output = np.expand_dims(output,-1)
+                            	     output[output==0.0] = 1e-10
+		                     output = sample/output
+				     tmp_result.append(output)
+			    result = recovering_fullimage(tmp_result,result,overlap,max_h,max_w)
 			    if not os.path.exists(os.path.join(savepath,'%03d/%d' %(list_val[idx],idx2))):
 			        os.makedirs(os.path.join(savepath,'%03d/%d' %(list_val[idx],idx2)))
 			    savename = os.path.join(savepath, '%03d/%d/single_normal_%s.bmp' % (list_val[idx],idx2,model))
-			    scipy.misc.imsave(savename, sample)
+			    scipy.misc.imsave(savename, result)
 
 	    elif VAL_OPTION ==4: # depends on light sources 
                 list_val = [11,16,21,22,33,36,38,53,59,92]
@@ -253,6 +257,15 @@ def main(_):
 			    scipy.misc.imsave(savename, sample)
 
 
+    def recovering_fullimage(output,result,overlap,max_h,max_w):
+	count = 0
+        for h in range(0,input_.shape[0],overlap):
+	    for w in range(0,input_.shape[1],overlap):
+		result[h:h+max_h,w:w+max_w,:,count] = output[count]
+		count += 0
 
+	return np.max(result,axis=3)
+
+                    
 if __name__ == '__main__':
     tf.app.run()
